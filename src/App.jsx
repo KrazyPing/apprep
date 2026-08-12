@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   BookOpen, Calculator, Award, CheckCircle2, Clock, Sparkles, 
-  ChevronRight, Play, FileText, Target, BrainCircuit, Lightbulb, 
-  Flame, Bookmark, ArrowRight, RotateCcw, HelpCircle, Activity,
-  LineChart, Compass, Edit3
+  ChevronRight, Play, Pause, RotateCcw, FileText, Target, BrainCircuit, Lightbulb, 
+  Flame, Bookmark, ArrowRight, HelpCircle, Activity,
+  LineChart, Compass, Edit3, Printer, Save
 } from 'lucide-react';
 
 // ==========================================
@@ -50,7 +50,7 @@ const AP_CURRICULUM = {
             { title: 'Chain Rule', detail: 'd/dx[f(g(x))] = f\'(g(x)) * g\'(x).' }
           ],
           keyFormulas: ['d/dx [x^n] = n*x^(n-1)', 'd/dx [a^x] = a^x * ln(a)', 'd/dx [arctan(x)] = 1 / (1 + x²)'],
-          apTraps: 'Forgeting the chain rule on implicit differentiation is the #1 point loser on FRQ #6.'
+          apTraps: 'Forgetting the chain rule on implicit differentiation is the #1 point loser on FRQ #6.'
         },
         quiz: [
           { q: 'Find d/dx of ln(sin(x))', options: ['cos(x)', 'cot(x)', 'tan(x)', '1/sin(x)'], answer: 1, explanation: 'Chain rule: (1/sin(x)) * cos(x) = cot(x).' }
@@ -197,7 +197,7 @@ const AP_CURRICULUM = {
 };
 
 // ==========================================
-// 2. CANVAS GRAPHING ENGINE COMPONENT
+// 2. CANVAS GRAPHING ENGINE
 // ==========================================
 function InteractiveGraph({ mode, paramA, paramB }) {
   const canvasRef = useRef(null);
@@ -209,30 +209,23 @@ function InteractiveGraph({ mode, paramA, paramB }) {
     const width = canvas.width;
     const height = canvas.height;
 
-    // Clear background
-    ctx.fillStyle = '#020617'; // slate-950
+    ctx.fillStyle = '#020617';
     ctx.fillRect(0, 0, width, height);
 
-    // Draw Grid Axes
-    ctx.strokeStyle = '#334155'; // slate-700
+    ctx.strokeStyle = '#334155';
     ctx.lineWidth = 1;
 
     const cx = width / 2;
     const cy = height / 2;
-    const scale = 30; // 30px per unit
+    const scale = 30;
 
-    // X Axis & Y Axis
     ctx.beginPath();
     ctx.moveTo(0, cy); ctx.lineTo(width, cy);
     ctx.moveTo(cx, 0); ctx.lineTo(cx, height);
     ctx.stroke();
 
-    // Mode-based Rendering
     if (mode === 'calc_taylor') {
-      // Plot e^x actual vs Taylor Polynomial degree paramA
       ctx.lineWidth = 2.5;
-
-      // Plot Actual e^x (Green)
       ctx.strokeStyle = '#10b981';
       ctx.beginPath();
       for (let px = 0; px < width; px++) {
@@ -244,7 +237,6 @@ function InteractiveGraph({ mode, paramA, paramB }) {
       }
       ctx.stroke();
 
-      // Plot Taylor Polynomial (Cyan)
       ctx.strokeStyle = '#06b6d4';
       ctx.beginPath();
       for (let px = 0; px < width; px++) {
@@ -261,12 +253,11 @@ function InteractiveGraph({ mode, paramA, paramB }) {
       }
       ctx.stroke();
     } else if (mode === 'physics_projectile') {
-      // Plot Projectile Motion with Angle = paramA (deg), Speed = paramB
       const angleRad = (paramA * Math.PI) / 180;
       const v0 = paramB;
       const g = 9.8;
 
-      ctx.strokeStyle = '#6366f1'; // indigo
+      ctx.strokeStyle = '#6366f1';
       ctx.lineWidth = 3;
       ctx.beginPath();
 
@@ -276,12 +267,9 @@ function InteractiveGraph({ mode, paramA, paramB }) {
       for (let t = 0; t < 10; t += 0.05) {
         const x = v0 * Math.cos(angleRad) * t;
         const y = v0 * Math.sin(angleRad) * t - 0.5 * g * t * t;
-
         const px = startX + x * 4;
         const py = startY - y * 4;
-
         if (py > startY) break;
-
         if (t === 0) ctx.moveTo(px, py);
         else ctx.lineTo(px, py);
       }
@@ -293,7 +281,7 @@ function InteractiveGraph({ mode, paramA, paramB }) {
     <div className="relative rounded-xl overflow-hidden border border-slate-800 shadow-inner">
       <canvas ref={canvasRef} width={550} height={280} className="w-full h-auto bg-slate-950 block" />
       <div className="absolute top-2 right-2 bg-slate-900/90 backdrop-blur px-3 py-1 rounded text-[10px] font-mono text-slate-300 border border-slate-800">
-        Canvas Graph Engine v2.0
+        Canvas Graph Engine
       </div>
     </div>
   );
@@ -305,33 +293,78 @@ function InteractiveGraph({ mode, paramA, paramB }) {
 export default function App() {
   const [activeSubject, setActiveSubject] = useState('calc');
   const [activeUnitIndex, setActiveUnitIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState('learn'); // learn, practice, graph
+  const [activeTab, setActiveTab] = useState('learn'); // learn, practice, graph, timer, cheat
+
+  // FEATURE 3: LOCALSTORAGE SAVING SETUP
+  const [userProgress, setUserProgress] = useState(() => {
+    const saved = localStorage.getItem('ap_hub_progress');
+    return saved ? JSON.parse(saved) : {};
+  });
+
   const [selectedAnswers, setSelectedAnswers] = useState({});
   const [showResults, setShowResults] = useState({});
 
-  // Interactive Graph Controls
+  // FEATURE 1: TIMER STATE
+  const [timerSeconds, setTimerSeconds] = useState(900); // Default 15 mins
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerMode, setTimerMode] = useState('frq_15');
+
+  // Graph Controls
   const [taylorDegree, setTaylorDegree] = useState(3);
   const [launchAngle, setLaunchAngle] = useState(45);
   const [launchVelocity, setLaunchVelocity] = useState(35);
-
-  // AP Lang Thesis State
   const [thesis, setThesis] = useState({ author: '', choices: '', purpose: '' });
 
   const subject = AP_CURRICULUM[activeSubject];
   const unit = subject.units[activeUnitIndex] || subject.units[0];
 
+  // Auto-save user progress whenever updated
+  useEffect(() => {
+    localStorage.setItem('ap_hub_progress', JSON.stringify(userProgress));
+  }, [userProgress]);
+
+  // FEATURE 1: TIMER TICKER
+  useEffect(() => {
+    let interval = null;
+    if (timerRunning && timerSeconds > 0) {
+      interval = setInterval(() => setTimerSeconds(prev => prev - 1), 1000);
+    } else if (timerSeconds === 0) {
+      setTimerRunning(false);
+    }
+    return () => clearInterval(interval);
+  }, [timerRunning, timerSeconds]);
+
+  const setTimerPreset = (type, seconds) => {
+    setTimerMode(type);
+    setTimerSeconds(seconds);
+    setTimerRunning(false);
+  };
+
+  const formatTime = (secs) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const toggleUnitMastery = (unitId) => {
+    setUserProgress(prev => ({
+      ...prev,
+      [unitId]: prev[unitId] === 'mastered' ? 'review' : 'mastered'
+    }));
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-16">
-      {/* Navbar Header */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-16 print:bg-white print:text-black">
+      {/* Header (Hidden when printing) */}
+      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 print:hidden">
         <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 bg-gradient-to-tr from-cyan-500 via-indigo-500 to-amber-500 rounded-xl text-slate-950 font-black text-xl tracking-wider">
               5/A
             </div>
             <div>
-              <h1 className="font-extrabold text-lg tracking-tight">AP Ultimate Teaching & Graphing Hub</h1>
-              <p className="text-xs text-slate-400">Calc BC • Physics C: Mechanics • AP Lang</p>
+              <h1 className="font-extrabold text-lg tracking-tight">AP Ultimate Teaching & Practice Hub</h1>
+              <p className="text-xs text-slate-400">Calc BC • Physics C: Mech • AP Lang</p>
             </div>
           </div>
           
@@ -361,36 +394,48 @@ export default function App() {
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 pt-8 space-y-6">
         
-        {/* Banner Card */}
-        <div className={`p-6 rounded-2xl bg-gradient-to-r ${subject.color} text-white shadow-2xl relative overflow-hidden`}>
+        {/* Banner Card (Hidden when printing) */}
+        <div className={`p-6 rounded-2xl bg-gradient-to-r ${subject.color} text-white shadow-2xl relative overflow-hidden print:hidden`}>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-bold uppercase tracking-wider backdrop-blur-md">
                 {subject.badge}
               </span>
               <h2 className="text-3xl font-black mt-2">{subject.title}</h2>
-              <p className="text-white/80 text-sm mt-1">Complete lessons, calculus derivations, dynamic graph engines, and essay builders.</p>
+              <p className="text-white/80 text-sm mt-1">Lessons, graphing engines, exam timers, and printable cheat sheets.</p>
             </div>
 
-            {/* Mode Selector */}
-            <div className="flex bg-slate-950/70 backdrop-blur border border-white/20 p-1 rounded-xl">
+            {/* Navigation Tabs */}
+            <div className="flex bg-slate-950/70 backdrop-blur border border-white/20 p-1 rounded-xl flex-wrap gap-1">
               <button
                 onClick={() => setActiveTab('learn')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${activeTab === 'learn' ? 'bg-white text-slate-950 shadow' : 'text-white/80 hover:text-white'}`}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${activeTab === 'learn' ? 'bg-white text-slate-950 shadow' : 'text-white/80 hover:text-white'}`}
               >
-                <BookOpen className="w-4 h-4" /> Teach Unit
+                <BookOpen className="w-3.5 h-3.5" /> Teach
               </button>
               <button
                 onClick={() => setActiveTab('graph')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${activeTab === 'graph' ? 'bg-white text-slate-950 shadow' : 'text-white/80 hover:text-white'}`}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${activeTab === 'graph' ? 'bg-white text-slate-950 shadow' : 'text-white/80 hover:text-white'}`}
               >
-                <LineChart className="w-4 h-4" /> Interactive Graphing
+                <LineChart className="w-3.5 h-3.5" /> Graph
               </button>
               <button
                 onClick={() => setActiveTab('practice')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${activeTab === 'practice' ? 'bg-white text-slate-950 shadow' : 'text-white/80 hover:text-white'}`}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${activeTab === 'practice' ? 'bg-white text-slate-950 shadow' : 'text-white/80 hover:text-white'}`}
               >
-                <BrainCircuit className="w-4 h-4" /> Diagnostic Quiz
+                <BrainCircuit className="w-3.5 h-3.5" /> Quiz
+              </button>
+              <button
+                onClick={() => setActiveTab('timer')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${activeTab === 'timer' ? 'bg-white text-slate-950 shadow' : 'text-white/80 hover:text-white'}`}
+              >
+                <Clock className="w-3.5 h-3.5" /> Timer
+              </button>
+              <button
+                onClick={() => setActiveTab('cheat')}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition ${activeTab === 'cheat' ? 'bg-white text-slate-950 shadow' : 'text-white/80 hover:text-white'}`}
+              >
+                <Printer className="w-3.5 h-3.5" /> Cheat Sheet
               </button>
             </div>
           </div>
@@ -399,31 +444,49 @@ export default function App() {
         {/* 2-Column Dashboard Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
-          {/* Left Column: Units Menu */}
-          <div className="lg:col-span-1 space-y-3">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 flex items-center gap-2">
-              <Target className="w-4 h-4 text-cyan-400" /> Units & Curriculum
+          {/* Left Column: Units Menu & Progress */}
+          <div className="lg:col-span-1 space-y-3 print:hidden">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-slate-400 flex items-center justify-between">
+              <span className="flex items-center gap-2"><Target className="w-4 h-4 text-cyan-400" /> Units</span>
+              <span className="text-[10px] text-emerald-400 font-mono">Auto-Saved 💾</span>
             </h3>
             
             <div className="space-y-2">
-              {subject.units.map((u, idx) => (
-                <button
-                  key={u.id}
-                  onClick={() => setActiveUnitIndex(idx)}
-                  className={`w-full text-left p-3.5 rounded-xl border transition flex flex-col gap-1 ${
-                    activeUnitIndex === idx 
-                      ? 'bg-slate-900 border-cyan-500 shadow-lg' 
-                      : 'bg-slate-900/40 border-slate-800/80 hover:border-slate-700'
-                  }`}
-                >
-                  <span className="text-[10px] font-extrabold text-slate-400 uppercase">{u.weight} Exam Weight</span>
-                  <span className="text-sm font-semibold text-slate-200">{u.name}</span>
-                </button>
-              ))}
+              {subject.units.map((u, idx) => {
+                const isMastered = userProgress[u.id] === 'mastered';
+                return (
+                  <div
+                    key={u.id}
+                    className={`w-full p-3 rounded-xl border transition flex items-center justify-between gap-2 ${
+                      activeUnitIndex === idx 
+                        ? 'bg-slate-900 border-cyan-500 shadow-lg' 
+                        : 'bg-slate-900/40 border-slate-800/80 hover:border-slate-700'
+                    }`}
+                  >
+                    <button 
+                      onClick={() => setActiveUnitIndex(idx)}
+                      className="text-left flex-1"
+                    >
+                      <span className="text-[10px] font-extrabold text-slate-400 uppercase block">{u.weight} Weight</span>
+                      <span className="text-xs font-semibold text-slate-200 block">{u.name}</span>
+                    </button>
+
+                    <button
+                      onClick={() => toggleUnitMastery(u.id)}
+                      className={`p-1.5 rounded-lg border text-xs transition ${
+                        isMastered ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500' : 'bg-slate-950 border-slate-800 text-slate-500'
+                      }`}
+                      title="Toggle Mastery Status"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Right Column: Display Panel */}
+          {/* Right Column: Active Mode Panel */}
           <div className="lg:col-span-3">
 
             {/* TAB 1: TEACH UNIT LESSON */}
@@ -435,7 +498,6 @@ export default function App() {
                   <p className="text-slate-300 text-sm mt-2 p-3 bg-slate-950 rounded-xl border border-slate-800/80 leading-relaxed">{unit.summary}</p>
                 </div>
 
-                {/* Core Concepts */}
                 <div className="space-y-3">
                   <h4 className="font-bold text-md text-slate-200 flex items-center gap-2">
                     <Lightbulb className="w-5 h-5 text-amber-400" /> Core Concepts & Derivations
@@ -450,7 +512,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Formulas & AP Traps */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="p-4 bg-indigo-950/30 border border-indigo-500/30 rounded-xl space-y-2">
                     <h5 className="font-bold text-xs uppercase tracking-wider text-indigo-400 flex items-center gap-2">
@@ -477,109 +538,77 @@ export default function App() {
               </div>
             )}
 
-            {/* TAB 2: INTERACTIVE GRAPHING & VISUAL LAB */}
+            {/* TAB 2: INTERACTIVE GRAPHING */}
             {activeTab === 'graph' && (
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-6">
                 <h3 className="text-xl font-bold flex items-center gap-2 text-cyan-400">
-                  <LineChart className="w-5 h-5" /> Dynamic Visual Graphing & Simulation Engine
+                  <LineChart className="w-5 h-5" /> Dynamic Visual Graphing Engine
                 </h3>
 
                 {activeSubject === 'calc' && (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex flex-col md:flex-row gap-6 items-center">
-                      <div className="w-full md:w-1/2 space-y-3">
-                        <h4 className="font-bold text-sm text-slate-200">Taylor Series Polynomial Grapher</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
-                          Visualizing <span className="text-emerald-400 font-bold">e^x (Green)</span> vs its <span className="text-cyan-400 font-bold">Taylor Approximation (Cyan)</span> centered at x=0.
-                        </p>
-                        <div>
-                          <label className="text-xs font-bold text-slate-300 block mb-1">Polynomial Degree (n): {taylorDegree}</label>
-                          <input 
-                            type="range" min="0" max="6" value={taylorDegree} 
-                            onChange={(e) => setTaylorDegree(Number(e.target.value))} 
-                            className="w-full accent-cyan-500 bg-slate-800"
-                          />
-                        </div>
+                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex flex-col md:flex-row gap-6 items-center">
+                    <div className="w-full md:w-1/2 space-y-3">
+                      <h4 className="font-bold text-sm text-slate-200">Taylor Series Polynomial Grapher</h4>
+                      <p className="text-xs text-slate-400">Visualizing e^x vs its Taylor polynomial approximation.</p>
+                      <div>
+                        <label className="text-xs font-bold text-slate-300 block mb-1">Degree (n): {taylorDegree}</label>
+                        <input type="range" min="0" max="6" value={taylorDegree} onChange={(e) => setTaylorDegree(Number(e.target.value))} className="w-full" />
                       </div>
-                      <div className="w-full md:w-1/2">
-                        <InteractiveGraph mode="calc_taylor" paramA={taylorDegree} paramB={0} />
-                      </div>
+                    </div>
+                    <div className="w-full md:w-1/2">
+                      <InteractiveGraph mode="calc_taylor" paramA={taylorDegree} paramB={0} />
                     </div>
                   </div>
                 )}
 
                 {activeSubject === 'physics' && (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex flex-col md:flex-row gap-6 items-center">
-                      <div className="w-full md:w-1/2 space-y-3">
-                        <h4 className="font-bold text-sm text-slate-200">Projectile Trajectory Vector Grapher</h4>
-                        <p className="text-xs text-slate-400 leading-relaxed">
-                          Plots motion path using calculus kinematic equations: y(t) = v₀ y t - 1/2 g t².
-                        </p>
-                        <div className="space-y-2">
-                          <div>
-                            <label className="text-xs font-bold text-slate-300 block mb-1">Launch Angle (°): {launchAngle}</label>
-                            <input type="range" min="15" max="75" value={launchAngle} onChange={(e) => setLaunchAngle(Number(e.target.value))} className="w-full accent-indigo-500" />
-                          </div>
-                          <div>
-                            <label className="text-xs font-bold text-slate-300 block mb-1">Launch Velocity (m/s): {launchVelocity}</label>
-                            <input type="range" min="10" max="50" value={launchVelocity} onChange={(e) => setLaunchVelocity(Number(e.target.value))} className="w-full accent-indigo-500" />
-                          </div>
+                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex flex-col md:flex-row gap-6 items-center">
+                    <div className="w-full md:w-1/2 space-y-3">
+                      <h4 className="font-bold text-sm text-slate-200">Projectile Vector Grapher</h4>
+                      <p className="text-xs text-slate-400">Plots trajectory using y(t) = v₀ sin(θ) t - 1/2 g t².</p>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-xs font-bold text-slate-300 block mb-1">Angle (°): {launchAngle}</label>
+                          <input type="range" min="15" max="75" value={launchAngle} onChange={(e) => setLaunchAngle(Number(e.target.value))} className="w-full" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-slate-300 block mb-1">Velocity (m/s): {launchVelocity}</label>
+                          <input type="range" min="10" max="50" value={launchVelocity} onChange={(e) => setLaunchVelocity(Number(e.target.value))} className="w-full" />
                         </div>
                       </div>
-                      <div className="w-full md:w-1/2">
-                        <InteractiveGraph mode="physics_projectile" paramA={launchAngle} paramB={launchVelocity} />
-                      </div>
+                    </div>
+                    <div className="w-full md:w-1/2">
+                      <InteractiveGraph mode="physics_projectile" paramA={launchAngle} paramB={launchVelocity} />
                     </div>
                   </div>
                 )}
 
                 {activeSubject === 'lang' && (
-                  <div className="space-y-4">
-                    <h4 className="font-bold text-sm text-slate-200">Interactive Thesis Generator & Rubric Evaluator</h4>
-                    <div className="space-y-3 p-4 bg-slate-950 rounded-xl border border-slate-800">
-                      <input 
-                        placeholder="Author / Speaker Name (e.g. Abigail Adams)" 
-                        value={thesis.author} 
-                        onChange={(e) => setThesis({...thesis, author: e.target.value})} 
-                        className="w-full bg-slate-900 border border-slate-700 p-2.5 rounded text-xs text-slate-200"
-                      />
-                      <input 
-                        placeholder="2 Specific Rhetorical Choices (e.g. motherly tone and historical analogies)" 
-                        value={thesis.choices} 
-                        onChange={(e) => setThesis({...thesis, choices: e.target.value})} 
-                        className="w-full bg-slate-900 border border-slate-700 p-2.5 rounded text-xs text-slate-200"
-                      />
-                      <input 
-                        placeholder="Specific Purpose / Message (e.g. advise her son to embrace challenge)" 
-                        value={thesis.purpose} 
-                        onChange={(e) => setThesis({...thesis, purpose: e.target.value})} 
-                        className="w-full bg-slate-900 border border-slate-700 p-2.5 rounded text-xs text-slate-200"
-                      />
-
-                      <div className="p-3 bg-slate-900 border border-amber-500/30 rounded-lg">
-                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block mb-1">Generated Thesis (1/1 Point Rubric Compliant)</span>
-                        <p className="text-xs text-slate-200 font-serif italic">
-                          "In her letter, {thesis.author || '[Speaker]'} strategically employs {thesis.choices || '[Rhetorical Choices]'} in order to {thesis.purpose || '[Purpose]'} for her intended audience."
-                        </p>
-                      </div>
+                  <div className="space-y-3 p-4 bg-slate-950 rounded-xl border border-slate-800">
+                    <h4 className="font-bold text-sm text-slate-200">Thesis Generator & Scoring Rubric</h4>
+                    <input placeholder="Speaker Name" value={thesis.author} onChange={(e) => setThesis({...thesis, author: e.target.value})} className="w-full bg-slate-900 border border-slate-700 p-2.5 rounded text-xs text-slate-200" />
+                    <input placeholder="2 Choices (e.g. contrasting tone and anecdotes)" value={thesis.choices} onChange={(e) => setThesis({...thesis, choices: e.target.value})} className="w-full bg-slate-900 border border-slate-700 p-2.5 rounded text-xs text-slate-200" />
+                    <input placeholder="Purpose" value={thesis.purpose} onChange={(e) => setThesis({...thesis, purpose: e.target.value})} className="w-full bg-slate-900 border border-slate-700 p-2.5 rounded text-xs text-slate-200" />
+                    <div className="p-3 bg-slate-900 border border-amber-500/30 rounded-lg">
+                      <p className="text-xs text-slate-200 font-serif italic">
+                        "In her work, {thesis.author || '[Speaker]'} utilizes {thesis.choices || '[Choices]'} to {thesis.purpose || '[Purpose]'} for her audience."
+                      </p>
                     </div>
                   </div>
                 )}
               </div>
             )}
 
-            {/* TAB 3: DIAGNOSTIC PRACTICE QUIZ */}
+            {/* TAB 3: DIAGNOSTIC QUIZ */}
             {activeTab === 'practice' && (
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-6">
                 <h3 className="text-xl font-bold flex items-center gap-2">
-                  <BrainCircuit className="w-5 h-5 text-indigo-400" /> Diagnostic Practice: {unit.name}
+                  <BrainCircuit className="w-5 h-5 text-indigo-400" /> Diagnostic Quiz: {unit.name}
                 </h3>
 
                 {unit.quiz.map((q, qIdx) => (
                   <div key={qIdx} className="p-5 bg-slate-950 rounded-xl border border-slate-800 space-y-4">
                     <p className="font-semibold text-slate-200 text-sm">{qIdx + 1}. {q.q}</p>
-                    
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {q.options.map((opt, oIdx) => (
                         <button
@@ -602,15 +631,97 @@ export default function App() {
                         </button>
                       ))}
                     </div>
-
                     {showResults[qIdx] && (
-                      <div className="p-3 bg-slate-900 border border-indigo-500/30 rounded-lg text-xs text-indigo-300 space-y-1">
-                        <span className="font-bold text-indigo-400 uppercase">Derivation & Solution:</span>
+                      <div className="p-3 bg-slate-900 border border-indigo-500/30 rounded-lg text-xs text-indigo-300">
+                        <span className="font-bold text-indigo-400 uppercase block mb-1">Solution Derivation:</span>
                         <p>{q.explanation}</p>
                       </div>
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* FEATURE 1: AP EXAM PRACTICE TIMERS */}
+            {activeTab === 'timer' && (
+              <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-6">
+                <h3 className="text-xl font-bold flex items-center gap-2 text-cyan-400">
+                  <Clock className="w-5 h-5" /> AP Exam FRQ & MCQ Pacing Timer
+                </h3>
+
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => setTimerPreset('frq_15', 900)} className={`px-3 py-1.5 rounded text-xs font-bold ${timerMode === 'frq_15' ? 'bg-cyan-500 text-slate-950' : 'bg-slate-950 text-slate-400 border border-slate-800'}`}>
+                    Single FRQ (15m)
+                  </button>
+                  <button onClick={() => setTimerPreset('lang_40', 2400)} className={`px-3 py-1.5 rounded text-xs font-bold ${timerMode === 'lang_40' ? 'bg-amber-500 text-slate-950' : 'bg-slate-950 text-slate-400 border border-slate-800'}`}>
+                    AP Lang Essay (40m)
+                  </button>
+                  <button onClick={() => setTimerPreset('mcq_45', 2700)} className={`px-3 py-1.5 rounded text-xs font-bold ${timerMode === 'mcq_45' ? 'bg-indigo-500 text-white' : 'bg-slate-950 text-slate-400 border border-slate-800'}`}>
+                    MCQ Sprint Block (45m)
+                  </button>
+                </div>
+
+                <div className="p-8 bg-slate-950 rounded-2xl border border-slate-800 text-center space-y-4">
+                  <span className="text-7xl font-mono font-black text-cyan-400 tracking-wider">
+                    {formatTime(timerSeconds)}
+                  </span>
+
+                  <div className="flex justify-center gap-4">
+                    <button 
+                      onClick={() => setTimerRunning(!timerRunning)} 
+                      className={`px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 ${timerRunning ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-slate-950'}`}
+                    >
+                      {timerRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      {timerRunning ? 'Pause' : 'Start Timer'}
+                    </button>
+
+                    <button 
+                      onClick={() => { setTimerRunning(false); setTimerSeconds(timerMode === 'frq_15' ? 900 : timerMode === 'lang_40' ? 2400 : 2700); }}
+                      className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold flex items-center gap-1"
+                    >
+                      <RotateCcw className="w-4 h-4" /> Reset
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* FEATURE 2: QUICK-PRINT FORMULA CHEAT SHEET VIEW */}
+            {activeTab === 'cheat' && (
+              <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl space-y-6 print:bg-white print:border-none print:p-0">
+                <div className="flex items-center justify-between print:hidden">
+                  <h3 className="text-xl font-bold flex items-center gap-2 text-emerald-400">
+                    <Printer className="w-5 h-5" /> Print-Ready Master Cheat Sheet
+                  </h3>
+                  <button 
+                    onClick={() => window.print()}
+                    className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-lg transition"
+                  >
+                    <Printer className="w-4 h-4" /> Print / Export PDF
+                  </button>
+                </div>
+
+                <div className="space-y-6 print:text-black">
+                  <div className="border-b border-slate-800 print:border-black pb-4">
+                    <h2 className="text-2xl font-extrabold">{subject.title} — Official AP Formula & Concept Review</h2>
+                    <p className="text-xs text-slate-400 print:text-gray-600 mt-1">High-Yield Exam Cram Sheet • Created with AP 5 & A Target Hub</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {subject.units.map((u) => (
+                      <div key={u.id} className="p-4 bg-slate-950 print:bg-gray-50 border border-slate-800 print:border-gray-300 rounded-xl space-y-2">
+                        <h4 className="font-bold text-sm text-cyan-400 print:text-black">{u.name}</h4>
+                        <ul className="space-y-1">
+                          {u.lesson.keyFormulas.map((f, i) => (
+                            <li key={i} className="text-xs font-mono bg-slate-900 print:bg-white p-1.5 rounded border border-slate-800 print:border-gray-200">
+                              {f}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
